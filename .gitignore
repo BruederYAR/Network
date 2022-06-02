@@ -7,6 +7,6 @@
 .tmp
 .lock
 
-/cashe
+/cache
 /node_modules
 /packages
