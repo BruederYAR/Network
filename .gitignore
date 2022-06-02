@@ -1,0 +1,12 @@
+.idea
+.env
+.database
+.DS_Store
+
+.log
+.tmp
+.lock
+
+/cashe
+/node_modules
+/packages
