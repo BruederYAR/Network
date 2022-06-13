@@ -5,7 +5,7 @@ import (
 	"Network/internal/entites/dto"
 	"Network/pkg/crypt"
 	"Network/pkg/protocol"
-	"crypto/rsa"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,9 +52,6 @@ func handleConnection(node *Node, conn net.Conn) { //Читаем данные
 		return
 	}
 
-	node.Service.Create(dto.Node{ Address: pack.From, Name: pack.Name, PublicKey: pack.PublicKey.N.String()})
-	node.ConnectTo([]string{pack.From}, pack.Name, pack.PublicKey) //записываем того, кто отослал данные
-
 	WorkingWithData(node, pack)
 }
 
@@ -67,29 +64,63 @@ func WorkingWithData(node *Node, pack entites.Packege) {
 			fmt.Println(string(message)) //Выводим данные
 		}
 
+	case node.Titles[-1]: //Рукопожатие handshakeids
+		var handShake entites.HandShakeIds
+		json.Unmarshal(pack.Date, &handShake)
+
+		node.Logger.LogInfo(fmt.Sprintf("Accepted ids from %s", pack.From))
+
+		localIds, err := node.Service.GetAllIds()
+		if err != nil {
+			node.Logger.LogError(err)
+		}
+		var sendIds entites.HandShake
+
+		isIdExist := func(val []byte, list []dto.Ids) bool {
+			for _, i := range list {
+				if bytes.Equal(i.Id, val) {
+					return true
+				}
+			}
+			return false
+		}
+
+		for _, i := range localIds {
+			if !isIdExist(i.Id, handShake.Ids) {
+				n, err := node.Service.GetById(i.Id)
+				if err != nil {
+					node.Logger.LogError(err)
+				}
+				sendIds.Nodes = append(sendIds.Nodes, n)
+			}
+		}
+
+		node.Logger.LogInfo(fmt.Sprintf("Send ids to %s. Data: %s", pack.From, sendIds.Nodes))
+
+		if handShake.Status {
+			node.HandShakeIds(pack.From, false)
+		}
+
+		node.HandShake(pack.From, sendIds)
+
 	case node.Titles[0]: //Рукопожатие handshake
 		var handShake entites.HandShake
 		json.Unmarshal(pack.Date, &handShake) //Забираем список узлов
 
-		if handShake.Status { //Если начало рукопожатия
-			node.HandShake(pack.From, false) //Отправляем узлы обратно
-		}
-
-		for _, local_node := range handShake.Nodes { //Добавляем узлы в локальные список
-			if node.Connections[local_node.Address] == nil && local_node.Name != node.Name { //Если узел, который нам прислали был не известен, то выполняем рукопожатие с ним
-				node.HandShake(local_node.Address, true)
+		//Добавление новых узлов
+		node.Logger.LogInfo(fmt.Sprintf("Accepted handshake from %s", pack.From))
+		for _, i := range handShake.Nodes {
+			_, err := node.Service.Add(i)
+			if err != nil {
+				node.Logger.LogError(errors.New(err.Error() + " " + i.Name + " " + i.Address))
 			}
-			node.Connections[local_node.Address] = &entites.NodeInfo{Name: local_node.Name, PublicKey: local_node.PublicKey}
 		}
-	}
-}
 
-func (node *Node) ConnectTo(addresses []string, name string, publickey rsa.PublicKey) { //Добавление в список подключений
-	for _, addr := range addresses {
-		if addr == "" {
-			node.Logger.LogError(errors.New("empty address"))
-		} else {
-			node.Connections[addr] = &entites.NodeInfo{Name: name, PublicKey: publickey}
+		//Рукопожатие с новыми узлами
+		for _, i := range handShake.Nodes {
+			node.HandShakeIds(i.Address, true)
 		}
+
+		node.Logger.LogInfo(fmt.Sprintf("Add %b nodes", len(handShake.Nodes)))
 	}
 }

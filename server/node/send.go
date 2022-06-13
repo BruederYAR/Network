@@ -2,6 +2,7 @@ package node
 
 import (
 	"Network/internal/entites"
+	"Network/internal/entites/dto"
 	"Network/pkg/crypt"
 	"Network/pkg/protocol"
 	"errors"
@@ -10,30 +11,7 @@ import (
 	"strings"
 )
 
-func (node *Node) recipientSearch(To string) (string, error){
-	if strings.Contains(To, ":") { //Если адрес
-		if node.Connections[To] == nil { //Если адреса нет в списке адресов, выполняем рукопожатия
-			node.HandShake(To, true)
-			return "", errors.New("[err] Unknown address, completed handshake try again")
-		}
-		return To, nil
-	} else { //Если имя
-		for key, item := range node.Connections { //Поиск адреса по имени
-			if item != nil{
-				if To == item.Name {
-					return key, nil
-				}
-			} 
-		}
-		if To == "" {
-			return "", errors.New("Couldn't find the recipient " + To)
-		}
-	}
-	return "", errors.New("Couldn't find the recipient " + To)
-}
-
-
-func (node *Node) HandShake(address string, status bool) error { //Рукопожатие при первом подключении
+func (node *Node) HandShake(address string, handshake entites.HandShake) error { //Рукопожатие при первом подключении
 	var new_pack = entites.Packege{
 		From:      node.Address.IP + node.Address.Port,
 		To:        address,
@@ -44,16 +22,38 @@ func (node *Node) HandShake(address string, status bool) error { //Рукопо�
 		Title:     node.Titles[0],
 	}
 
-	if !status {
-		node.Logger.LogInfo(fmt.Sprintf("HandShake from %s to %s", new_pack.From , new_pack.To))
-	}
-
-	new_pack.Date, _ = protocol.HandShakeToJson(node.Connections, status) //Статус нужен для того, чтобы определять кто начал рукопожатие, иначе сеть будет постоянно их слать
-
+	new_pack.Date, _ = protocol.HandShakeToJson(handshake.Nodes)
+	node.Logger.LogInfo(fmt.Sprintf("Send handshake to %s", new_pack.To))
 	return node.Send(&new_pack)
 }
 
-func (node *Node) SendMessageTo(To string, message []byte) (error) {
+func (node *Node) HandShakeIds(address string, status bool) error {
+	var new_pack = entites.Packege{
+		From:      node.Address.IP + node.Address.Port,
+		To:        address,
+		Name:      node.Name,
+		PublicKey: node.PublicKey,
+		Type:      node.Types[1],
+		Date:      []byte{},
+		Title:     node.Titles[-1],
+	}
+
+	ids, err := node.Service.GetAllIds()
+	if err != nil {
+		node.Logger.LogWarning(err.Error())
+		return err
+	}
+
+	new_pack.Date, err = protocol.HandShakeIdsToJson(ids, status)
+	if err != nil {
+		node.Logger.LogWarning(err.Error())
+		return err
+	}
+	node.Logger.LogInfo(fmt.Sprintf("Send handshake ids to %s", new_pack.To))
+	return node.Send(&new_pack)
+}
+
+func (node *Node) SendMessageTo(To string, message []byte) error {
 	var new_pack = entites.Packege{
 		From:      node.Address.IP + node.Address.Port,
 		Name:      node.Name,
@@ -62,51 +62,41 @@ func (node *Node) SendMessageTo(To string, message []byte) (error) {
 		Type:      node.Types[0],
 	}
 
+	var result dto.Node
 	if strings.Contains(To, ":") { //Если адрес
-		if node.Connections[To] == nil { //Если адреса нет в списке адресов, выполняем рукопожатия
-			node.HandShake(To, true)
-			return errors.New("Unknown address, completed handshake try again")
+		r, err := node.Service.FindByAddress(To)
+		if err != nil {
+			return errors.New("Find address exception:" + err.Error())
 		}
 		new_pack.To = To
+		result = r
 	} else { //Если имя
-		for key, item := range node.Connections { //Поиск адреса по имени
-			if item != nil{
-				if To == item.Name {
-					new_pack.To = key
-				}
-			} 
+		res, err := node.Service.FindByName(To)
+		if err != nil {
+			return err
 		}
+		result = res
+		new_pack.To = result.Address
 		if new_pack.To == "" {
 			return errors.New("Couldn't find the recipient" + To)
 		}
 	}
 
-	new_pack.Date = crypt.RSA_OAEP_Encrypt(message, node.Connections[new_pack.To].PublicKey)
+	publicKey, err := node.Service.GetPublickeyById(result.NodeId)
+	if err != nil {
+		return errors.New("Public key cannot be read")
+	}
+
+	new_pack.Date = crypt.RSA_OAEP_Encrypt(message, publicKey)
 
 	return node.Send(&new_pack)
-}
-
-func (node *Node) SendMessageToAll(message []byte) error { //Отправка сообщений всем
-	var new_pack = entites.Packege{
-		From:      node.Address.IP + node.Address.Port,
-		Name:      node.Name,
-		PublicKey: node.PublicKey,
-		Title:     node.Titles[1],
-		Type:      node.Types[0],
-	}
-	for addr := range node.Connections { //Переборам отправляем сообщение
-		new_pack.To = addr
-		new_pack.Date = crypt.RSA_OAEP_Encrypt(message, node.Connections[new_pack.To].PublicKey)
-		return node.Send(&new_pack)
-	}
-	return nil
 }
 
 func (node *Node) Send(pack *entites.Packege) error { //Отправление данных конкретному пользователю
 	conn, err := net.Dial("tcp", pack.To) //Подключаемся
 	if err != nil {                       //Если подключение не прошло, забываем о узле
-		delete(node.Connections, pack.To)
-		return errors.New("Connection error to "+ pack.To)
+		//node.Service.Delete((node.Service.FindByName(pack.To)))
+		return errors.New("Connection error to " + pack.To)
 	}
 	defer conn.Close()
 

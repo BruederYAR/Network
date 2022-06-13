@@ -22,7 +22,7 @@ func ConsoleClient(n *node.Node) { //Клиент
 			fmt.Println("^/network", "Вывести все присоедененные узлы и собственный адрес")
 			fmt.Println("^/m", "Отправить сообщение. Ключи: 1)адрес(ip:port или имя) 2)сообщение")
 		case "/connect":
-			err := n.HandShake(splited[1], true)
+			err := n.HandShakeIds(splited[1], true)
 			if err != nil {
 				fmt.Println(err.Error())
 			}
@@ -37,19 +37,19 @@ func ConsoleClient(n *node.Node) { //Клиент
 			if err != nil {
 				fmt.Println(err.Error())
 			}
-		default:
-			err := n.SendMessageToAll([]byte(message))
-			if err != nil {
-				fmt.Println(err.Error())
-			}
 		}
 	}
 }
 
 func PrintNetwork(n *node.Node) { //Ввывод всех подключений
 	fmt.Println("local address " + n.Address.IP + n.Address.Port)
-	for addr := range n.Connections {
-		fmt.Println(n.Connections[addr].Name + "|" + addr)
+
+	conns, err := n.Service.GetAll()
+	if err != nil {
+		n.Logger.LogError(err)
+	}
+	for _, addr := range conns {
+		fmt.Println(string(addr.NodeId) + "|" + addr.Name + "|" + addr.Address)
 	}
 }
 

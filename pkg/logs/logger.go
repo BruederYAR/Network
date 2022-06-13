@@ -37,3 +37,8 @@ func (logger *Logger) LogWarning(message string) {
 func (logger *Logger) LogInfo(message string) {
 	logger.Info.Println(message)
 }
+
+func (logger *Logger) LogPanic(message string) {
+	logger.Warning.Println(message)
+	panic(message)
+}

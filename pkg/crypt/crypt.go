@@ -10,8 +10,7 @@ import (
 func RSA_OAEP_Encrypt(secretMessage []byte, key rsa.PublicKey) []byte {
 	label := []byte("OAEP Encrypted")
 	rng := rand.Reader
-	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rng, &key,
-		secretMessage, label)
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rng, &key, secretMessage, label)
 
 	if err != nil {
 		fmt.Println(err.Error())
