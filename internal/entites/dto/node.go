@@ -1,8 +1,8 @@
 package dto
 
 type Node struct {
-	NodeId    []byte
-	Address   string
-	PublicKey []byte
-	Name      string
+	NodeId    []byte `json:"nodeid"`
+	Address   string `json:"address"`
+	PublicKey []byte `json:"publickey"`
+	Name      string `json:"name"`
 }

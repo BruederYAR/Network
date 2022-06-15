@@ -43,6 +43,7 @@ func main() {
 		logger.LogInfo("Database created")
 	}
 
+	//create layers
 	repos := sqlite_repository.NewNodeRepository(*config, logger)
 	serv := service.NewNodeService(logger, repos)
 
@@ -53,15 +54,6 @@ func main() {
 	} else {
 		logger.LogInfo("Node created")
 	}
-
-	//serv.Create(dto.Node{Address: "123.123", Name: "Test", PublicKey: "qwer" })
-	// res, err := serv.GetAll()
-	// for i := 0; i < len(res); i++  {
-	// 	fmt.Println(fmt.Sprintf("ID: %s | PublicKey: %s | Address: %s | Name: %s", res[i].NodeId, res[i].PublicKey, res[i].Address, res[i].Name ))
-	// }
-	//id := res[0].NodeId
-	//res2, err := serv.GetById(id)
-	//fmt.Println(res2)
 
 	res, err := serv.GetAllIds()
 	for i := 0; i < len(res); i++ {

@@ -5,6 +5,7 @@ import (
 	"Network/internal/entites/dto"
 	"Network/pkg/crypt"
 	"Network/pkg/protocol"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -18,11 +19,14 @@ func (node *Node) HandShake(address string, handshake entites.HandShake) error {
 		Name:      node.Name,
 		PublicKey: node.PublicKey,
 		Type:      node.Types[1],
-		Date:      []byte{},
 		Title:     node.Titles[0],
 	}
 
-	new_pack.Date, _ = protocol.HandShakeToJson(handshake.Nodes)
+	new_pack.Date, _ = json.Marshal(handshake)
+
+	var test entites.HandShake
+	json.Unmarshal(new_pack.Date, &test)
+
 	node.Logger.LogInfo(fmt.Sprintf("Send handshake to %s", new_pack.To))
 	return node.Send(&new_pack)
 }
@@ -49,6 +53,7 @@ func (node *Node) HandShakeIds(address string, status bool) error {
 		node.Logger.LogWarning(err.Error())
 		return err
 	}
+
 	node.Logger.LogInfo(fmt.Sprintf("Send handshake ids to %s", new_pack.To))
 	return node.Send(&new_pack)
 }

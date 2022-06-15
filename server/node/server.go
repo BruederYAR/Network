@@ -107,6 +107,10 @@ func WorkingWithData(node *Node, pack entites.Packege) {
 		var handShake entites.HandShake
 		json.Unmarshal(pack.Date, &handShake) //Забираем список узлов
 
+		if handShake.Nodes == nil {
+			return
+		}
+
 		//Добавление новых узлов
 		node.Logger.LogInfo(fmt.Sprintf("Accepted handshake from %s", pack.From))
 		for _, i := range handShake.Nodes {
