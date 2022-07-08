@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	//Test args 
+	//Test args
 	input.TestArgs(os.Args)
 
 	//create folder
